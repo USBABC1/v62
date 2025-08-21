@@ -63,7 +63,6 @@ class AutoSaveManager:
             f"{self.analyses_path}/files",
             f"{self.analyses_path}/funil_vendas",
             f"{self.analyses_path}/insights",
-            f"{self.analyses_path}/logs",
             f"{self.analyses_path}/metadata",
             f"{self.analyses_path}/metricas",
             f"{self.analyses_path}/palavras_chave",
@@ -75,7 +74,9 @@ class AutoSaveManager:
             f"{self.analyses_path}/progress",
             f"{self.analyses_path}/provas_visuais",
             f"{self.analyses_path}/reports",
-            f"{self.analyses_path}/users"
+            f"{self.analyses_path}/users",
+            f"{self.analyses_path}/analise_qualidade", # Novo diretório para scores de qualidade
+            f"{self.analyses_path}/insights_parciais" # Novo diretório para insights parciais
         ]
 
         for directory in directories:
@@ -87,6 +88,9 @@ class AutoSaveManager:
     def salvar_etapa(self, nome_etapa: str, dados: Any, categoria: str = "analise_completa", session_id: str = None) -> str:
         """Salva uma etapa do processo com timestamp"""
         try:
+            # Importa o serviço de análise preditiva aqui para evitar circular imports
+            from services.predictive_analytics_service import predictive_analytics_service
+
             # Gera timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
@@ -123,12 +127,35 @@ class AutoSaveManager:
 
                 logger.info(f"💾 Etapa '{nome_etapa}' salva: {arquivo_json}")
 
+                # Condição 1: Após salvar dados da categoria pesquisa_web
+                if categoria == "pesquisa_web" and session_id and dados_serializaveis.get("data") and dados_serializaveis["data"].get("conteudo"):
+                    conteudo_para_analise = dados_serializaveis["data"]["conteudo"]
+                    qualidade_score = predictive_analytics_service.get_content_quality_score(conteudo_para_analise)
+                    self.salvar_etapa(
+                        f"{nome_etapa}_qualidade",
+                        {"score": qualidade_score, "source_url": dados_serializaveis["data"].get("url")},
+                        "analise_qualidade",
+                        session_id
+                    )
+
+                # Condição 2: Após salvar dados da categoria conteudo_sintetizado
+                if categoria == "conteudo_sintetizado" and session_id and dados_serializaveis.get("data") and dados_serializaveis["data"].get("conteudo_principal"):
+                    conteudo_sintetizado = dados_serializaveis["data"]["conteudo_principal"]
+                    insights_parciais = predictive_analytics_service.analyze_content_chunk(conteudo_sintetizado)
+                    self.salvar_etapa(
+                        f"{nome_etapa}_insights_parciais",
+                        insights_parciais,
+                        "insights_parciais",
+                        session_id
+                    )
+
                 # TAMBÉM salva na pasta analyses_data se for um módulo
                 # Lista de categorias que devem ser salvas em analyses_data
                 modulos_para_analyses_data = [
                     "avatars", "drivers_mentais", "anti_objecao", "provas_visuais",
                     "pre_pitch", "predicoes_futuro", "posicionamento", "concorrencia",
-                    "palavras_chave", "funil_vendas", "insights", "plano_acao"
+                    "palavras_chave", "funil_vendas", "insights", "plano_acao",
+                    "analise_qualidade", "insights_parciais" # Adicionados novos
                 ]
 
                 # Verifica se a categoria atual está na lista de módulos a serem salvos em analyses_data
@@ -371,161 +398,44 @@ class AutoSaveManager:
             return ""
 
     def salvar_relatorio_final(self, relatorio: str, session_id: str) -> str:
-        """Salva o relatório final detalhado"""
+        """Salva o relatório final"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
-            diretorio = f"{self.analyses_path}/reports"
+            diretorio = f"{self.base_path}/relatorios_finais"
             os.makedirs(diretorio, exist_ok=True)
 
-            # Salva também como .md para facilitar visualização
-            arquivo_md = f"{diretorio}/relatorio_final_{session_id}_{timestamp}.md"
-            with open(arquivo_md, 'w', encoding='utf-8') as f:
-                f.write(relatorio)
-            
-            # Salva como .txt também, mantendo compatibilidade
-            arquivo_txt = f"{diretorio}/relatorio_final_{session_id}_{timestamp}.txt"
-            with open(arquivo_txt, 'w', encoding='utf-8') as f:
+            arquivo = f"{diretorio}/relatorio_final_{session_id}_{timestamp}.md"
+
+            with open(arquivo, 'w', encoding='utf-8') as f:
                 f.write(relatorio)
 
-            logger.info(f"📄 Relatório final salvo: {arquivo_md}")
-            return arquivo_md
+            logger.info(f"📄 Relatório final salvo: {arquivo}")
+            return arquivo
 
         except Exception as e:
             logger.error(f"❌ Erro ao salvar relatório final: {e}")
             return ""
 
-    def _clean_for_serialization(self, obj, seen=None, depth=0):
-        """Limpa objeto para serialização JSON removendo referências circulares e tipos não serializáveis"""
-        if seen is None:
-            seen = set()
-
-        # Limite de profundidade para evitar recursão infinita
-        if depth > 15:
-            return {"__max_depth__": f"Depth limit reached at {depth}"}
-
-        # Verifica referência circular
-        obj_id = id(obj)
-        if obj_id in seen:
-            return {"__circular_ref__": f"{type(obj).__name__}_{obj_id}"}
-
-        seen.add(obj_id)
-
-        try:
-            # Tipos primitivos - retorna direto
-            if obj is None or isinstance(obj, (bool, int, float, str)):
-                return obj
-
-            # Dicionários - TRATAMENTO ESPECIAL PARA EVITAR unhashable type
-            elif isinstance(obj, dict):
-                result = {}
-                for key, value in obj.items():
-                    # Converte chaves para string segura
-                    try:
-                        if isinstance(key, (dict, list, set)):
-                            # Se a chave é um tipo não hashable, converte para string
-                            safe_key = f"key_{hash(str(key))}"
-                        else:
-                            safe_key = str(key)[:100]  # Limita tamanho da chave
-                    except Exception:
-                        safe_key = f"key_{obj_id}_{len(result)}"
-
-                    try:
-                        result[safe_key] = self._clean_for_serialization(value, seen.copy(), depth + 1)
-                    except Exception as e:
-                        result[safe_key] = f"<Error serializing: {str(e)[:50]}>"
-                return result
-
-            # Listas e tuplas
-            elif isinstance(obj, (list, tuple)):
-                result = []
-                for i, item in enumerate(obj[:100]):  # Limita a 100 itens para evitar listas enormes
-                    try:
-                        result.append(self._clean_for_serialization(item, seen.copy(), depth + 1))
-                    except Exception as e:
-                        result.append(f"<Error at index {i}: {str(e)[:50]}>")
-                return result
-
-            # Sets - converte para lista
-            elif isinstance(obj, set):
-                try:
-                    return [self._clean_for_serialization(item, seen.copy(), depth + 1) for item in list(obj)[:50]]
-                except Exception:
-                    return [f"<Set item {i}>" for i in range(min(len(obj), 50))]
-
-            # Objetos com __dict__
-            elif hasattr(obj, '__dict__'):
-                try:
-                    return self._clean_for_serialization(obj.__dict__, seen.copy(), depth + 1)
-                except Exception:
-                    return {"__object__": f"{type(obj).__name__}"}
-
-            # Funções e métodos
-            elif callable(obj):
-                return f"<function {getattr(obj, '__name__', 'unknown')}>"
-
-            # Tipos especiais (datetime, etc)
-            elif hasattr(obj, 'isoformat'):  # datetime objects
-                try:
-                    return obj.isoformat()
-                except Exception:
-                    return str(obj)
-
-            # Outros tipos - converte para string segura
-            else:
-                try:
-                    # Tenta serializar diretamente primeiro
-                    import json
-                    json.dumps(obj)
-                    return obj
-                except (TypeError, ValueError):
-                    # Se não conseguir, converte para string
-                    try:
-                        str_repr = str(obj)[:500]  # Limita tamanho
-                        return {"__string_repr__": str_repr, "__type__": type(obj).__name__}
-                    except Exception:
-                        return {"__unserializable__": type(obj).__name__}
-
-        except Exception as e:
-            logger.warning(f"Erro crítico ao limpar objeto: {e}")
-            return {"__serialization_error__": str(e)[:100]}
-        finally:
-            seen.discard(obj_id)
-
-    def make_serializable(self, data):
-        """
-        Converte objetos não serializáveis para formatos JSON-compatíveis
-        Versão otimizada para resolver problemas específicos de 'unhashable type: dict'
-        """
-        try:
-            # Testa se já é serializável
-            import json
-            json.dumps(data)
-            return data
-        except (TypeError, ValueError) as e:
-            if "unhashable type" in str(e):
-                logger.warning(f"⚠️ Detectado problema 'unhashable type', aplicando correção...")
-            return self._clean_for_serialization(data)
-
 # Instância global
 auto_save_manager = AutoSaveManager()
 
-# Funções de conveniência para importação direta
+# Funções para compatibilidade com o código existente
 def salvar_etapa(nome_etapa: str, dados: Any, categoria: str = "analise_completa", session_id: str = None) -> str:
-    """Função de conveniência para salvar etapa"""
-    # A lógica de salvar em analyses_data já está dentro do método salvar_etapa
     return auto_save_manager.salvar_etapa(nome_etapa, dados, categoria, session_id)
 
-# === NOVA FUNÇÃO DE CONVENIÊNCIA ===
-def salvar_trecho_pesquisa_web(url: str, titulo: str, conteudo: str, metodo_extracao: str, qualidade: float, session_id: str) -> str:
-    """Função de conveniência para salvar trecho de pesquisa web."""
-    return auto_save_manager.salvar_trecho_pesquisa_web(url, titulo, conteudo, metodo_extracao, qualidade, session_id)
-
 def salvar_erro(nome_erro: str, erro: Exception, contexto: Dict[str, Any] = None, session_id: str = None) -> str:
-    """Função de conveniência para salvar erro"""
     return auto_save_manager.salvar_erro(nome_erro, erro, contexto, session_id)
 
-def salvar_modulo_analyses_data(nome_modulo: str, dados: Any, session_id: str = None) -> str:
-    """Função de conveniência para salvar módulo em analyses_data"""
-    # Esta função pode ser mantida para uso explícito, mas a lógica principal está em salvar_etapa
-    return auto_save_manager.salvar_modulo_analyses_data(nome_modulo, dados, session_id)
+def salvar_json_gigante(dados_massivos: Dict[str, Any], session_id: str) -> str:
+    return auto_save_manager.salvar_json_gigante(dados_massivos, session_id)
+
+def salvar_relatorio_final(relatorio: str, session_id: str) -> str:
+    return auto_save_manager.salvar_relatorio_final(relatorio, session_id)
+
+def salvar_trecho_pesquisa_web(url: str, titulo: str, conteudo: str, metodo_extracao: str, qualidade: float, session_id: str) -> str:
+    return auto_save_manager.salvar_trecho_pesquisa_web(url, titulo, conteudo, metodo_extracao, qualidade, session_id)
+
+
+
+

@@ -16,6 +16,8 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote_plus
 import json
 
+from services.predictive_analytics_service import predictive_analytics_service # Import adicionado
+
 logger = logging.getLogger(__name__)
 
 class RealSearchOrchestrator:
@@ -229,6 +231,12 @@ class RealSearchOrchestrator:
                 search_results['screenshots_captured'] = screenshots
                 self.session_stats['screenshots_captured'] = len(screenshots)
 
+            # FASE 6: Análise Preditiva dos dados coletados
+            logger.info("📊 FASE 6: Realizando análise preditiva dos dados coletados...")
+            predictive_insights = await predictive_analytics_service.analyze_all_data(session_id)
+            search_results['predictive_insights'] = predictive_insights
+            logger.info(f"✅ Análise preditiva concluída e insights adicionados aos resultados da busca.")
+
             # Calcula estatísticas finais
             search_duration = time.time() - start_time
             all_results = search_results['web_results'] + search_results['social_results'] + search_results['youtube_results']
@@ -407,45 +415,33 @@ class RealSearchOrchestrator:
             return {'success': False, 'error': str(e)}
 
     async def _search_google(self, query: str) -> Dict[str, Any]:
-        """Busca REAL usando Google Custom Search"""
+        """Busca REAL usando Google Custom Search API"""
         try:
             api_key = self.get_next_api_key('GOOGLE')
-            cse_id = os.getenv('GOOGLE_CSE_ID')
-
-            if not api_key or not cse_id:
-                return {'success': False, 'error': 'Google API não configurada'}
+            cx = os.getenv('GOOGLE_CSE_ID')
+            if not api_key or not cx:
+                return {'success': False, 'error': 'Google API key ou CSE ID não disponível'}
 
             async with aiohttp.ClientSession() as session:
                 params = {
                     'key': api_key,
-                    'cx': cse_id,
-                    'q': f"{query} Brasil 2024",
-                    'num': 10,
-                    'lr': 'lang_pt',
-                    'gl': 'br',
-                    'safe': 'off',
-                    'dateRestrict': 'm6'
+                    'cx': cx,
+                    'q': query,
+                    'num': 10,  # Número de resultados
+                    'hl': 'pt-BR', # Idioma da interface
+                    'gl': 'BR' # País de pesquisa
                 }
-
-                async with session.get(
-                    self.service_urls['GOOGLE'],
-                    params=params,
-                    timeout=30
-                ) as response:
+                async with session.get(self.service_urls['GOOGLE'], params=params, timeout=30) as response:
                     if response.status == 200:
                         data = await response.json()
                         results = []
-
                         for item in data.get('items', []):
                             results.append({
-                                'title': item.get('title', ''),
-                                'url': item.get('link', ''),
-                                'snippet': item.get('snippet', ''),
-                                'source': 'google_real',
-                                'published_date': item.get('pagemap', {}).get('metatags', [{}])[0].get('article:published_time', ''),
-                                'relevance_score': 0.9
+                                'title': item.get('title'),
+                                'url': item.get('link'),
+                                'snippet': item.get('snippet'),
+                                'source': 'google'
                             })
-
                         return {
                             'success': True,
                             'provider': 'GOOGLE',
@@ -453,242 +449,14 @@ class RealSearchOrchestrator:
                         }
                     else:
                         error_text = await response.text()
-                        logger.error(f"❌ Google erro {response.status}: {error_text}")
+                        logger.error(f"❌ Google Search erro {response.status}: {error_text}")
                         return {'success': False, 'error': f'HTTP {response.status}'}
-
         except Exception as e:
-            logger.error(f"❌ Erro Google: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def _search_youtube(self, query: str) -> Dict[str, Any]:
-        """Busca REAL no YouTube com foco em conteúdo viral"""
-        try:
-            api_key = self.get_next_api_key('YOUTUBE')
-            if not api_key:
-                return {'success': False, 'error': 'YouTube API key não disponível'}
-
-            async with aiohttp.ClientSession() as session:
-                params = {
-                    'part': "snippet,id",
-                    'q': f"{query} Brasil",
-                    'key': api_key,
-                    'maxResults': 25,
-                    'order': 'viewCount',  # Ordena por visualizações
-                    'type': 'video',
-                    'regionCode': 'BR',
-                    'relevanceLanguage': 'pt',
-                    'publishedAfter': '2023-01-01T00:00:00Z'
-                }
-
-                async with session.get(
-                    self.service_urls['YOUTUBE'],
-                    params=params,
-                    timeout=30
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        results = []
-
-                        for item in data.get('items', []):
-                            snippet = item.get('snippet', {})
-                            video_id = item.get('id', {}).get('videoId', '')
-
-                            # Busca estatísticas detalhadas
-                            stats = await self._get_youtube_video_stats(video_id, api_key, session)
-
-                            results.append({
-                                'title': snippet.get('title', ''),
-                                'url': f"https://www.youtube.com/watch?v={video_id}",
-                                'description': snippet.get('description', ''),
-                                'channel': snippet.get('channelTitle', ''),
-                                'published_at': snippet.get('publishedAt', ''),
-                                'thumbnail': snippet.get('thumbnails', {}).get('high', {}).get('url', ''),
-                                'view_count': stats.get('viewCount', 0),
-                                'comment_count': stats.get('commentCount', 0),
-                                'platform': 'youtube',
-                                'viral_score': self._calculate_viral_score(stats),
-                                'relevance_score': 0.85
-                            })
-
-                        # Ordena por score viral
-                        results.sort(key=lambda x: x['viral_score'], reverse=True)
-
-                        return {
-                            'success': True,
-                            'provider': 'YOUTUBE',
-                            'platform': 'youtube',
-                            'results': results
-                        }
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"❌ YouTube erro {response.status}: {error_text}")
-                        return {'success': False, 'error': f'HTTP {response.status}'}
-
-        except Exception as e:
-            logger.error(f"❌ Erro YouTube: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def _get_youtube_video_stats(self, video_id: str, api_key: str, session: aiohttp.ClientSession) -> Dict[str, Any]:
-        """Obtém estatísticas detalhadas de um vídeo do YouTube"""
-        try:
-            params = {
-                'part': 'statistics',
-                'id': video_id,
-                'key': api_key
-            }
-
-            async with session.get(
-                'https://www.googleapis.com/youtube/v3/videos',
-                params=params,
-                timeout=10
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    items = data.get('items', [])
-                    if items:
-                        return items[0].get('statistics', {})
-
-                return {}
-
-        except Exception as e:
-            logger.warning(f"⚠️ Erro ao obter stats do vídeo {video_id}: {e}")
-            return {}
-
-    async def _search_supadata(self, query: str) -> Dict[str, Any]:
-        """Busca REAL usando Supadata MCP"""
-        try:
-            api_key = self.get_next_api_key('SUPADATA')
-            if not api_key:
-                return {'success': False, 'error': 'Supadata API key não disponível'}
-
-            async with aiohttp.ClientSession() as session:
-                headers = {
-                    'Authorization': f'Bearer {api_key}',
-                    'Content-Type': 'application/json'
-                }
-
-                payload = {
-                    'method': 'social_search',
-                    'params': {
-                        'query': query,
-                        'platforms': ['instagram', 'facebook', 'tiktok'],
-                        'limit': 50,
-                        'sort_by': 'engagement',
-                        'include_metrics': True
-                    }
-                }
-
-                async with session.post(
-                    self.service_urls['SUPADATA'],
-                    json=payload,
-                    headers=headers,
-                    timeout=45
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        results = []
-
-                        posts = data.get('result', {}).get('posts', [])
-                        for post in posts:
-                            results.append({
-                                'title': post.get('caption', '')[:100],
-                                'url': post.get('url', ''),
-                                'content': post.get('caption', ''),
-                                'platform': post.get('platform', 'social'),
-                                'engagement_rate': post.get('engagement_rate', 0),
-                                'likes': post.get('likes', 0),
-                                'comments': post.get('comments', 0),
-                                'shares': post.get('shares', 0),
-                                'author': post.get('author', ''),
-                                'published_at': post.get('published_at', ''),
-                                'viral_score': self._calculate_social_viral_score(post),
-                                'relevance_score': 0.8
-                            })
-
-                        return {
-                            'success': True,
-                            'provider': 'SUPADATA',
-                            'results': results
-                        }
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"❌ Supadata erro {response.status}: {error_text}")
-                        return {'success': False, 'error': f'HTTP {response.status}'}
-
-        except Exception as e:
-            logger.error(f"❌ Erro Supadata: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def _search_twitter(self, query: str) -> Dict[str, Any]:
-        """Busca REAL no Twitter/X"""
-        try:
-            api_key = self.get_next_api_key('X')
-            if not api_key:
-                return {'success': False, 'error': 'X API key não disponível'}
-
-            async with aiohttp.ClientSession() as session:
-                headers = {
-                    'Authorization': f'Bearer {api_key}',
-                    'Content-Type': 'application/json'
-                }
-
-                params = {
-                    'query': f"{query} lang:pt",
-                    'max_results': 50,
-                    'tweet.fields': 'public_metrics,created_at,author_id',
-                    'user.fields': 'username,verified,public_metrics',
-                    'expansions': 'author_id'
-                }
-
-                async with session.get(
-                    'https://api.twitter.com/2/tweets/search/recent',
-                    params=params,
-                    headers=headers,
-                    timeout=30
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        results = []
-
-                        tweets = data.get('data', [])
-                        users = {user['id']: user for user in data.get('includes', {}).get('users', [])}
-
-                        for tweet in tweets:
-                            author = users.get(tweet.get('author_id', ''), {})
-                            metrics = tweet.get('public_metrics', {})
-
-                            results.append({
-                                'title': tweet.get('text', '')[:100],
-                                'url': f"https://twitter.com/i/status/{tweet.get('id')}",
-                                'content': tweet.get('text', ''),
-                                'platform': 'twitter',
-                                'author': author.get('username', ''),
-                                'author_verified': author.get('verified', False),
-                                'retweets': metrics.get('retweet_count', 0),
-                                'likes': metrics.get('like_count', 0),
-                                'replies': metrics.get('reply_count', 0),
-                                'quotes': metrics.get('quote_count', 0),
-                                'published_at': tweet.get('created_at', ''),
-                                'viral_score': self._calculate_twitter_viral_score(metrics),
-                                'relevance_score': 0.75
-                            })
-
-                        return {
-                            'success': True,
-                            'provider': 'X',
-                            'results': results
-                        }
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"❌ X/Twitter erro {response.status}: {error_text}")
-                        return {'success': False, 'error': f'HTTP {response.status}'}
-
-        except Exception as e:
-            logger.error(f"❌ Erro X/Twitter: {e}")
+            logger.error(f"❌ Erro Google Search: {e}")
             return {'success': False, 'error': str(e)}
 
     async def _search_exa(self, query: str) -> Dict[str, Any]:
-        """Busca REAL usando Exa Neural Search"""
+        """Busca REAL usando Exa API"""
         try:
             api_key = self.get_next_api_key('EXA')
             if not api_key:
@@ -699,40 +467,22 @@ class RealSearchOrchestrator:
                     'x-api-key': api_key,
                     'Content-Type': 'application/json'
                 }
-
                 payload = {
-                    'query': f"{query} Brasil mercado tendências",
-                    'numResults': 15,
-                    'useAutoprompt': True,
-                    'type': 'neural',
-                    'includeDomains': [
-                        'g1.globo.com', 'exame.com', 'valor.globo.com',
-                        'estadao.com.br', 'folha.uol.com.br', 'infomoney.com.br'
-                    ],
-                    'startPublishedDate': '2023-01-01'
+                    'query': query,
+                    'num_results': 10,
+                    'type': 'search' # Pode ser 'search' ou 'find_similar'
                 }
-
-                async with session.post(
-                    self.service_urls['EXA'],
-                    json=payload,
-                    headers=headers,
-                    timeout=30
-                ) as response:
+                async with session.post(self.service_urls['EXA'], headers=headers, json=payload, timeout=30) as response:
                     if response.status == 200:
                         data = await response.json()
                         results = []
-
                         for item in data.get('results', []):
                             results.append({
-                                'title': item.get('title', ''),
-                                'url': item.get('url', ''),
-                                'snippet': item.get('text', '')[:300],
-                                'source': 'exa_neural',
-                                'score': item.get('score', 0),
-                                'published_date': item.get('publishedDate', ''),
-                                'relevance_score': item.get('score', 0.8)
+                                'title': item.get('title'),
+                                'url': item.get('url'),
+                                'snippet': item.get('text'), # Exa usa 'text' como snippet
+                                'source': 'exa'
                             })
-
                         return {
                             'success': True,
                             'provider': 'EXA',
@@ -740,15 +490,14 @@ class RealSearchOrchestrator:
                         }
                     else:
                         error_text = await response.text()
-                        logger.error(f"❌ Exa erro {response.status}: {error_text}")
+                        logger.error(f"❌ Exa API erro {response.status}: {error_text}")
                         return {'success': False, 'error': f'HTTP {response.status}'}
-
         except Exception as e:
-            logger.error(f"❌ Erro Exa: {e}")
+            logger.error(f"❌ Erro Exa API: {e}")
             return {'success': False, 'error': str(e)}
 
     async def _search_serper(self, query: str) -> Dict[str, Any]:
-        """Busca REAL usando Serper"""
+        """Busca REAL usando Serper API"""
         try:
             api_key = self.get_next_api_key('SERPER')
             if not api_key:
@@ -759,35 +508,22 @@ class RealSearchOrchestrator:
                     'X-API-KEY': api_key,
                     'Content-Type': 'application/json'
                 }
-
                 payload = {
-                    'q': f"{query} Brasil mercado",
-                    'gl': 'br',
-                    'hl': 'pt',
-                    'num': 15,
-                    'autocorrect': True
+                    'q': query,
+                    'gl': 'br', # País
+                    'hl': 'pt' # Idioma
                 }
-
-                async with session.post(
-                    self.service_urls['SERPER'],
-                    json=payload,
-                    headers=headers,
-                    timeout=30
-                ) as response:
+                async with session.post(self.service_urls['SERPER'], headers=headers, json=payload, timeout=30) as response:
                     if response.status == 200:
                         data = await response.json()
                         results = []
-
                         for item in data.get('organic', []):
                             results.append({
-                                'title': item.get('title', ''),
-                                'url': item.get('link', ''),
-                                'snippet': item.get('snippet', ''),
-                                'source': 'serper_real',
-                                'position': item.get('position', 0),
-                                'relevance_score': 0.85
+                                'title': item.get('title'),
+                                'url': item.get('link'),
+                                'snippet': item.get('snippet'),
+                                'source': 'serper'
                             })
-
                         return {
                             'success': True,
                             'provider': 'SERPER',
@@ -795,231 +531,170 @@ class RealSearchOrchestrator:
                         }
                     else:
                         error_text = await response.text()
-                        logger.error(f"❌ Serper erro {response.status}: {error_text}")
+                        logger.error(f"❌ Serper API erro {response.status}: {error_text}")
                         return {'success': False, 'error': f'HTTP {response.status}'}
-
         except Exception as e:
-            logger.error(f"❌ Erro Serper: {e}")
+            logger.error(f"❌ Erro Serper API: {e}")
             return {'success': False, 'error': str(e)}
 
-    def _extract_search_results_from_content(self, content: str, provider: str) -> List[Dict[str, Any]]:
-        """Extrai resultados de busca do conteúdo extraído"""
-        results = []
+    async def _search_youtube(self, query: str) -> Dict[str, Any]:
+        """Busca REAL usando YouTube Data API"""
+        try:
+            api_key = self.get_next_api_key('YOUTUBE')
+            if not api_key:
+                return {'success': False, 'error': 'YouTube API key não disponível'}
 
-        if not content:
-            return results
-
-        # Divide o conteúdo em seções
-        lines = content.split('\n')
-        current_result = {}
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # Detecta títulos (linhas com mais de 20 caracteres e sem URLs)
-            if (len(line) > 20 and 
-                not line.startswith('http') and 
-                not line.startswith('www') and
-                '.' not in line[:10]):
-
-                # Salva resultado anterior se existir
-                if current_result.get('title'):
-                    results.append(current_result)
-
-                # Inicia novo resultado
-                current_result = {
-                    'title': line,
-                    'url': '',
-                    'snippet': '',
-                    'source': provider,
-                    'relevance_score': 0.7
+            async with aiohttp.ClientSession() as session:
+                params = {
+                    'part': 'snippet',
+                    'q': query,
+                    'type': 'video',
+                    'maxResults': 10,
+                    'key': api_key,
+                    'regionCode': 'BR',
+                    'relevanceLanguage': 'pt'
                 }
+                async with session.get(self.service_urls['YOUTUBE'], params=params, timeout=30) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        results = []
+                        for item in data.get('items', []):
+                            results.append({
+                                'title': item['snippet']['title'],
+                                'url': f"https://www.youtube.com/watch?v={item['id']['videoId']}",
+                                'snippet': item['snippet']['description'],
+                                'source': 'youtube',
+                                'published_at': item['snippet']['publishedAt']
+                            })
+                        return {
+                            'success': True,
+                            'provider': 'YOUTUBE',
+                            'platform': 'youtube',
+                            'results': results
+                        }
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"❌ YouTube API erro {response.status}: {error_text}")
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"❌ Erro YouTube API: {e}")
+            return {'success': False, 'error': str(e)}
 
-            # Detecta URLs
-            elif line.startswith(('http', 'www')):
-                if current_result:
-                    current_result['url'] = line
+    async def _search_supadata(self, query: str) -> Dict[str, Any]:
+        """Busca REAL usando Supadata API para redes sociais (Instagram, Facebook, TikTok)"""
+        try:
+            api_key = self.get_next_api_key('SUPADATA')
+            if not api_key:
+                return {'success': False, 'error': 'Supadata API key não disponível'}
 
-            # Detecta descrições (linhas médias)
-            elif 50 <= len(line) <= 200 and current_result:
-                current_result['snippet'] = line
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json'
+                }
+                payload = {
+                    'query': query,
+                    'platforms': ['instagram', 'facebook', 'tiktok'], # Exemplo de plataformas
+                    'num_results': 10
+                }
+                async with session.post(self.service_urls['SUPADATA'], headers=headers, json=payload, timeout=60) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        results = []
+                        for platform, posts in data.get('results', {}).items():
+                            for post in posts:
+                                results.append({
+                                    'title': post.get('title', ''),
+                                    'url': post.get('url', ''),
+                                    'snippet': post.get('text', ''),
+                                    'source': 'supadata',
+                                    'platform': platform,
+                                    'likes': post.get('likes', 0),
+                                    'comments': post.get('comments', 0),
+                                    'shares': post.get('shares', 0),
+                                    'published_at': post.get('published_at')
+                                })
+                        return {
+                            'success': True,
+                            'provider': 'SUPADATA',
+                            'results': results
+                        }
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"❌ Supadata API erro {response.status}: {error_text}")
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"❌ Erro Supadata API: {e}")
+            return {'success': False, 'error': str(e)}
 
-        # Adiciona último resultado
-        if current_result.get('title'):
-            results.append(current_result)
+    def _identify_viral_content(self, social_media_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Identifica conteúdo potencialmente viral com base em métricas de engajamento."""
+        viral_threshold_likes = 1000  # Exemplo: mais de 1000 likes
+        viral_threshold_comments = 100 # Exemplo: mais de 100 comentários
+        viral_threshold_shares = 50   # Exemplo: mais de 50 compartilhamentos
 
-        # Filtra resultados válidos
-        valid_results = [r for r in results if r.get('title') and len(r.get('title', '')) > 10]
-
-        return valid_results[:15]  # Máximo 15 por provedor
-
-    def _identify_viral_content(self, all_social_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Identifica conteúdo viral para captura de screenshots"""
-
-        if not all_social_results:
-            return []
-
-        # Ordena por score viral
-        sorted_content = sorted(
-            all_social_results, 
-            key=lambda x: x.get('viral_score', 0), 
-            reverse=True
-        )
-
-        # Seleciona top 10 conteúdos virais
         viral_content = []
-        seen_urls = set()
+        for item in social_media_results:
+            likes = item.get('likes', 0)
+            comments = item.get('comments', 0)
+            shares = item.get('shares', 0)
 
-        for content in sorted_content:
-            url = content.get('url', '')
-            if url and url not in seen_urls and len(viral_content) < 10:
-                viral_content.append(content)
-                seen_urls.add(url)
-
-        logger.info(f"🔥 {len(viral_content)} conteúdos virais identificados")
+            if (likes >= viral_threshold_likes or
+                comments >= viral_threshold_comments or
+                shares >= viral_threshold_shares):
+                viral_content.append(item)
+        
+        logger.info(f"🔥 Identificados {len(viral_content)} itens de conteúdo potencialmente viral.")
         return viral_content
 
-    async def _capture_viral_screenshots(self, viral_content: List[Dict[str, Any]], session_id: str) -> List[Dict[str, Any]]:
-        """Captura screenshots do conteúdo viral usando Selenium"""
+    async def _capture_viral_screenshots(self, viral_content: List[Dict[str, Any]], session_id: str) -> List[str]:
+        """Captura screenshots de URLs de conteúdo viral."""
+        from services.visual_content_capture import visual_content_capture
+        
+        captured_screenshots = []
+        for item in viral_content:
+            url = item.get('url')
+            if url:
+                try:
+                    screenshot_path = await visual_content_capture.capture_screenshot_async(url, session_id)
+                    if screenshot_path:
+                        captured_screenshots.append(screenshot_path)
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao capturar screenshot para {url}: {e}")
+        
+        logger.info(f"📸 Capturados {len(captured_screenshots)} screenshots de conteúdo viral.")
+        return captured_screenshots
 
-        screenshots = []
+    def _extract_search_results_from_content(self, content: str, source: str) -> List[Dict[str, Any]]:
+        """Extrai títulos, URLs e snippets de conteúdo textual (ex: de Firecrawl ou Jina)."""
+        results = []
+        # Regex simplificado para encontrar URLs e títulos/snippets próximos
+        # Isso é um placeholder e pode precisar de refinamento dependendo do formato do conteúdo real
+        
+        # Exemplo: busca por links Markdown [title](url)
+        links = re.findall(r'\[(.*?)\]\((https?://[\w\d\./\-]+)\)', content)
+        for title, url in links:
+            results.append({
+                'title': title,
+                'url': url,
+                'snippet': '', # Snippet pode ser mais difícil de extrair com regex simples
+                'source': source
+            })
 
-        try:
-            from selenium import webdriver
-            from selenium.webdriver.chrome.options import Options
-            from selenium.webdriver.chrome.service import Service
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
-            from webdriver_manager.chrome import ChromeDriverManager
+        # Fallback: busca por URLs simples
+        if not results:
+            urls = re.findall(r'https?://[\w\d\./\-]+', content)
+            for url in urls:
+                results.append({
+                    'title': f"Conteúdo de {url}",
+                    'url': url,
+                    'snippet': content[:200] + "..." if len(content) > 200 else content,
+                    'source': source
+                })
 
-            # Configura Chrome em modo headless
-            chrome_options = Options()
-            chrome_options.add_argument("--headless")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--disable-gpu")
-
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-
-            # Cria diretório para screenshots
-            screenshots_dir = f"analyses_data/files/{session_id}"
-            os.makedirs(screenshots_dir, exist_ok=True)
-
-            try:
-                for i, content in enumerate(viral_content, 1):
-                    try:
-                        url = content.get('url', '')
-                        if not url:
-                            continue
-
-                        logger.info(f"📸 Capturando screenshot {i}/10: {content.get('title', 'Sem título')}")
-
-                        # Acessa a URL
-                        driver.get(url)
-
-                        # Aguarda carregamento
-                        WebDriverWait(driver, 10).until(
-                            EC.presence_of_element_located((By.TAG_NAME, "body"))
-                        )
-
-                        # Aguarda renderização completa
-                        time.sleep(3)
-
-                        # Captura screenshot
-                        screenshot_path = f"{screenshots_dir}/viral_content_{i:02d}.png"
-                        driver.save_screenshot(screenshot_path)
-
-                        # Verifica se foi criado
-                        if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
-                            screenshots.append({
-                                'content_data': content,
-                                'screenshot_path': screenshot_path,
-                                'filename': f"viral_content_{i:02d}.png",
-                                'url': url,
-                                'title': content.get('title', ''),
-                                'platform': content.get('platform', ''),
-                                'viral_score': content.get('viral_score', 0),
-                                'captured_at': datetime.now().isoformat()
-                            })
-
-                            logger.info(f"✅ Screenshot {i} capturado: {screenshot_path}")
-                        else:
-                            logger.warning(f"⚠️ Falha ao capturar screenshot {i}")
-
-                    except Exception as e:
-                        logger.error(f"❌ Erro ao capturar screenshot {i}: {e}")
-                        continue
-
-            finally:
-                driver.quit()
-
-        except ImportError:
-            logger.error("❌ Selenium não instalado - screenshots não disponíveis")
-            return []
-        except Exception as e:
-            logger.error(f"❌ Erro na captura de screenshots: {e}")
-            return []
-
-        return screenshots
-
-    def _calculate_viral_score(self, stats: Dict[str, Any]) -> float:
-        """Calcula score viral para YouTube"""
-        try:
-            views = int(stats.get('viewCount', 0))
-            likes = int(stats.get('likeCount', 0))
-            comments = int(stats.get('commentCount', 0))
-
-            # Fórmula viral: views + (likes * 10) + (comments * 20)
-            viral_score = views + (likes * 10) + (comments * 20)
-
-            # Normaliza para 0-10
-            return min(10.0, viral_score / 100000)
-
-        except:
-            return 0.0
-
-    def _calculate_social_viral_score(self, post: Dict[str, Any]) -> float:
-        """Calcula score viral para redes sociais"""
-        try:
-            likes = int(post.get('likes', 0))
-            comments = int(post.get('comments', 0))
-            shares = int(post.get('shares', 0))
-            engagement_rate = float(post.get('engagement_rate', 0))
-
-            # Fórmula viral para redes sociais
-            viral_score = (likes * 1) + (comments * 5) + (shares * 10) + (engagement_rate * 1000)
-
-            # Normaliza para 0-10
-            return min(10.0, viral_score / 10000)
-
-        except:
-            return 0.0
-
-    def _calculate_twitter_viral_score(self, metrics: Dict[str, Any]) -> float:
-        """Calcula score viral para Twitter"""
-        try:
-            retweets = int(metrics.get('retweet_count', 0))
-            likes = int(metrics.get('like_count', 0))
-            replies = int(metrics.get('reply_count', 0))
-            quotes = int(metrics.get('quote_count', 0))
-
-            # Fórmula viral para Twitter
-            viral_score = (retweets * 10) + (likes * 2) + (replies * 5) + (quotes * 15)
-
-            # Normaliza para 0-10
-            return min(10.0, viral_score / 5000)
-
-        except:
-            return 0.0
-
-    def get_session_statistics(self) -> Dict[str, Any]:
-        """Retorna estatísticas da sessão atual"""
-        return self.session_stats.copy()
+        return results
 
 # Instância global
 real_search_orchestrator = RealSearchOrchestrator()
+
+

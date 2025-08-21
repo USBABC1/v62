@@ -16,8 +16,8 @@ from pathlib import Path
 # Import do Enhanced AI Manager
 from services.enhanced_ai_manager import enhanced_ai_manager
 from services.auto_save_manager import salvar_etapa, salvar_erro
-# CORREÇÃO 1: Importar a função com o nome correto
-from modules.cpl_creator import create_devastating_cpl_protocol # Import do novo módulo
+from services.predictive_analytics_service import predictive_analytics_service # Import adicionado
+from modules.cpl_creator import create_devastating_cpl_protocol
 
 logger = logging.getLogger(__name__)
 
@@ -30,119 +30,123 @@ class EnhancedModuleProcessor:
 
         # Lista completa dos módulos (incluindo o novo módulo CPL)
         self.modules_config = {
-            'anti_objecao': {
-                'title': 'Sistema Anti-Objeção',
-                'description': 'Sistema completo para antecipar e neutralizar objeções',
-                'use_active_search': False,
-                'type': 'standard'
+            "anti_objecao": {
+                "title": "Sistema Anti-Objeção",
+                "description": "Sistema completo para antecipar e neutralizar objeções",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'avatars': {
-                'title': 'Avatares do Público-Alvo',
-                'description': 'Personas detalhadas do público-alvo',
-                'use_active_search': False,
-                'type': 'standard'
+            "avatars": {
+                "title": "Avatares do Público-Alvo",
+                "description": "Personas detalhadas do público-alvo",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'concorrencia': {
-                'title': 'Análise Competitiva',
-                'description': 'Análise completa da concorrência',
-                'use_active_search': True,
-                'type': 'standard'
+            "concorrencia": {
+                "title": "Análise Competitiva",
+                "description": "Análise completa da concorrência",
+                "use_active_search": True,
+                "type": "standard"
             },
-            'drivers_mentais': {
-                'title': 'Drivers Mentais',
-                'description': 'Gatilhos psicológicos e drivers de compra',
-                'use_active_search': False,
-                'type': 'standard'
+            "drivers_mentais": {
+                "title": "Drivers Mentais",
+                "description": "Gatilhos psicológicos e drivers de compra",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'funil_vendas': {
-                'title': 'Funil de Vendas',
-                'description': 'Estrutura completa do funil de vendas',
-                'use_active_search': False,
-                'type': 'standard'
+            "funil_vendas": {
+                "title": "Funil de Vendas",
+                "description": "Estrutura completa do funil de vendas",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'insights_mercado': {
-                'title': 'Insights de Mercado',
-                'description': 'Insights profundos sobre o mercado',
-                'use_active_search': True,
-                'type': 'standard'
+            "insights_mercado": {
+                "title": "Insights de Mercado",
+                "description": "Insights profundos sobre o mercado",
+                "use_active_search": True,
+                "type": "standard"
             },
-            'palavras_chave': {
-                'title': 'Estratégia de Palavras-Chave',
-                'description': 'Estratégia completa de SEO e palavras-chave',
-                'use_active_search': False,
-                'type': 'standard'
+            "palavras_chave": {
+                "title": "Estratégia de Palavras-Chave",
+                "description": "Estratégia completa de SEO e palavras-chave",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'plano_acao': {
-                'title': 'Plano de Ação',
-                'description': 'Plano de ação detalhado e executável',
-                'use_active_search': False,
-                'type': 'standard'
+            "plano_acao": {
+                "title": "Plano de Ação",
+                "description": "Plano de ação detalhado e executável",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'posicionamento': {
-                'title': 'Estratégia de Posicionamento',
-                'description': 'Posicionamento estratégico no mercado',
-                'use_active_search': False,
-                'type': 'standard'
+            "posicionamento": {
+                "title": "Estratégia de Posicionamento",
+                "description": "Posicionamento estratégico no mercado",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'pre_pitch': {
-                'title': 'Estrutura de Pré-Pitch',
-                'description': 'Estrutura de pré-venda e engajamento',
-                'use_active_search': False,
-                'type': 'standard'
+            "pre_pitch": {
+                "title": "Estrutura de Pré-Pitch",
+                "description": "Estrutura de pré-venda e engajamento",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'predicoes_futuro': {
-                'title': 'Predições de Mercado',
-                'description': 'Predições e tendências futuras',
-                'use_active_search': True,
-                'type': 'standard'
+            "predicoes_futuro": {
+                "title": "Predições de Mercado",
+                "description": "Predições e tendências futuras",
+                "use_active_search": True,
+                "type": "standard"
             },
-            'provas_visuais': {
-                'title': 'Sistema de Provas Visuais',
-                'description': 'Provas visuais e sociais',
-                'use_active_search': False,
-                'type': 'standard'
+            "provas_visuais": {
+                "title": "Sistema de Provas Visuais",
+                "description": "Provas visuais e sociais",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'metricas_conversao': {
-                'title': 'Métricas de Conversão',
-                'description': 'KPIs e métricas de conversão',
-                'use_active_search': False,
-                'type': 'standard'
+            "metricas_conversao": {
+                "title": "Métricas de Conversão",
+                "description": "KPIs e métricas de conversão",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'estrategia_preco': {
-                'title': 'Estratégia de Precificação',
-                'description': 'Estratégia de preços e monetização',
-                'use_active_search': False,
-                'type': 'standard'
+            "estrategia_preco": {
+                "title": "Estratégia de Precificação",
+                "description": "Estratégia de preços e monetização",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'canais_aquisicao': {
-                'title': 'Canais de Aquisição',
-                'description': 'Canais de aquisição de clientes',
-                'use_active_search': False,
-                'type': 'standard'
+            "canais_aquisicao": {
+                "title": "Canais de Aquisição",
+                "description": "Canais de aquisição de clientes",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'cronograma_lancamento': {
-                'title': 'Cronograma de Lançamento',
-                'description': 'Cronograma detalhado de lançamento',
-                'use_active_search': False,
-                'type': 'standard'
+            "cronograma_lancamento": {
+                "title": "Cronograma de Lançamento",
+                "description": "Cronograma detalhado de lançamento",
+                "use_active_search": False,
+                "type": "standard"
             },
-            'cpl_completo': {
-                'title': 'Protocolo Integrado de CPLs Devastadores',
-                'description': 'Protocolo completo para criação de sequência de 4 CPLs de alta performance',
-                'use_active_search': True,
-                'type': 'specialized',
-                'requires': ['sintese_master', 'avatar_data', 'contexto_estrategico', 'dados_web']
+            "cpl_completo": {
+                "title": "Protocolo Integrado de CPLs Devastadores",
+                "description": "Protocolo completo para criação de sequência de 4 CPLs de alta performance",
+                "use_active_search": True,
+                "type": "specialized",
+                "requires": ["sintese_master", "avatar_data", "contexto_estrategico", "dados_web"]
             }
         }
 
         logger.info("🚀 Enhanced Module Processor inicializado")
 
-    async def generate_all_modules(self, session_id: str) -> Dict[str, Any]:
+    async def generate_all_modules(self, session_id: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Gera todos os módulos (16 padrão + 1 especializado CPL)"""
         logger.info(f"🚀 Iniciando geração de todos os módulos para sessão: {session_id}")
 
         # Carrega dados base
         base_data = self._load_base_data(session_id)
+        # Adiciona insights iniciais do contexto, se existirem
+        if context and "initial_predictive_insights" in context:
+            base_data["initial_predictive_insights"] = context["initial_predictive_insights"]
+            logger.info("Insights preditivos iniciais adicionados ao base_data para módulos.")
 
         results = {
             "session_id": session_id,
@@ -163,43 +167,40 @@ class EnhancedModuleProcessor:
                 logger.info(f"📝 Gerando módulo: {module_name}")
 
                 # Verifica se é o módulo especializado CPL
-                if module_name == 'cpl_completo':
-                    # CORREÇÃO 2: Chamar a função com o nome correto e argumentos ajustados
-                    # Gera o módulo CPL especializado
+                if module_name == "cpl_completo":
                     cpl_content = await create_devastating_cpl_protocol(
-                        sintese_master=base_data.get('sintese_master', {}),
-                        avatar_data=base_data.get('avatar_data', {}),
-                        contexto_estrategico=base_data.get('contexto_estrategico', {}),
-                        dados_web=base_data.get('dados_web', {}),
-                        session_id=session_id # session_id passado como keyword argument
+                        sintese_master=base_data.get("sintese_master", {}),
+                        avatar_data=base_data.get("avatar_data", {}),
+                        contexto_estrategico=base_data.get("contexto_estrategico", {}),
+                        dados_web=base_data.get("dados_web", {}),
+                        session_id=session_id
                     )
                     
-                    # Salva conteúdo do módulo CPL em formato JSON e Markdown
                     cpl_json_path = modules_dir / f"{module_name}.json"
-                    with open(cpl_json_path, 'w', encoding='utf-8') as f:
+                    with open(cpl_json_path, "w", encoding="utf-8") as f:
                         json.dump(cpl_content, f, ensure_ascii=False, indent=2)
                     
-                    # Cria versão Markdown do conteúdo CPL
                     cpl_md_content = self._format_cpl_content_to_markdown(cpl_content)
                     cpl_md_path = modules_dir / f"{module_name}.md"
-                    with open(cpl_md_path, 'w', encoding='utf-8') as f:
+                    with open(cpl_md_path, "w", encoding="utf-8") as f:
                         f.write(cpl_md_content)
                 else:
                     # Gera conteúdo do módulo padrão
-                    if config.get('use_active_search', False):
+                    prompt = self._get_module_prompt(module_name, config, base_data)
+                    if config.get("use_active_search", False):
                         content = await self.ai_manager.generate_with_active_search(
-                            prompt=self._get_module_prompt(module_name, config, base_data),
-                            context=base_data.get('context', ''),
+                            prompt=prompt,
+                            context=base_data.get("context", ""),
                             session_id=session_id
                         )
                     else:
                         content = await self.ai_manager.generate_text(
-                            prompt=self._get_module_prompt(module_name, config, base_data)
+                            prompt=prompt
                         )
 
                     # Salva módulo padrão
                     module_path = modules_dir / f"{module_name}.md"
-                    with open(module_path, 'w', encoding='utf-8') as f:
+                    with open(module_path, "w", encoding="utf-8") as f:
                         f.write(content)
 
                 results["successful_modules"] += 1
@@ -219,7 +220,7 @@ class EnhancedModuleProcessor:
         # Gera relatório consolidado
         await self._generate_consolidated_report(session_id, results)
 
-        logger.info(f"✅ Geração concluída: {results['successful_modules']}/{results['total_modules']} módulos")
+        logger.info(f"✅ Geração concluída: {results["successful_modules"]}/{results["total_modules"]} módulos")
 
         return results
 
@@ -232,7 +233,7 @@ class EnhancedModuleProcessor:
             synthesis_data = {}
             for synthesis_file in session_dir.glob("sintese_*.json"):
                 try:
-                    with open(synthesis_file, 'r', encoding='utf-8') as f:
+                    with open(synthesis_file, "r", encoding="utf-8") as f:
                         synthesis_data[synthesis_file.stem] = json.load(f)
                 except Exception as e:
                     logger.warning(f"⚠️ Erro ao carregar síntese {synthesis_file}: {e}")
@@ -241,7 +242,7 @@ class EnhancedModuleProcessor:
             coleta_content = ""
             coleta_file = session_dir / "relatorio_coleta.md"
             if coleta_file.exists():
-                with open(coleta_file, 'r', encoding='utf-8') as f:
+                with open(coleta_file, "r", encoding="utf-8") as f:
                     coleta_content = f.read()
 
             # Carrega dados específicos para o módulo CPL
@@ -254,7 +255,7 @@ class EnhancedModuleProcessor:
             sintese_master_file = session_dir / "sintese_master_synthesis.json"
             if sintese_master_file.exists():
                 try:
-                    with open(sintese_master_file, 'r', encoding='utf-8') as f:
+                    with open(sintese_master_file, "r", encoding="utf-8") as f:
                         sintese_master = json.load(f)
                 except Exception as e:
                     logger.warning(f"⚠️ Erro ao carregar síntese master: {e}")
@@ -263,7 +264,7 @@ class EnhancedModuleProcessor:
             avatar_file = session_dir / "avatar_detalhado.json"
             if avatar_file.exists():
                 try:
-                    with open(avatar_file, 'r', encoding='utf-8') as f:
+                    with open(avatar_file, "r", encoding="utf-8") as f:
                         avatar_data = json.load(f)
                 except Exception as e:
                     logger.warning(f"⚠️ Erro ao carregar dados do avatar: {e}")
@@ -272,7 +273,7 @@ class EnhancedModuleProcessor:
             contexto_file = session_dir / "contexto_estrategico.json"
             if contexto_file.exists():
                 try:
-                    with open(contexto_file, 'r', encoding='utf-8') as f:
+                    with open(contexto_file, "r", encoding="utf-8") as f:
                         contexto_estrategico = json.load(f)
                 except Exception as e:
                     logger.warning(f"⚠️ Erro ao carregar contexto estratégico: {e}")
@@ -281,7 +282,7 @@ class EnhancedModuleProcessor:
             web_data_file = session_dir / "dados_pesquisa_web.json"
             if web_data_file.exists():
                 try:
-                    with open(web_data_file, 'r', encoding='utf-8') as f:
+                    with open(web_data_file, "r", encoding="utf-8") as f:
                         dados_web = json.load(f)
                 except Exception as e:
                     logger.warning(f"⚠️ Erro ao carregar dados da web: {e}")
@@ -311,15 +312,26 @@ class EnhancedModuleProcessor:
     def _get_module_prompt(self, module_name: str, config: Dict[str, Any], base_data: Dict[str, Any]) -> str:
         """Gera prompt para um módulo específico"""
 
-        base_prompt = f"""# {config['title']}
+        base_prompt = f"""# {config["title"]}
 
-Você é um especialista em {config['description'].lower()}.
+Você é um especialista em {config["description"].lower()}.
 
 ## DADOS DISPONÍVEIS:
-{base_data.get('context', 'Dados limitados')}
+{base_data.get("context", "Dados limitados")}
 
-## TAREFA:
-Crie um módulo ultra-detalhado sobre {config['title']} baseado nos dados coletados.
+## CONTEXTO DOS DADOS COLETADOS:
+{base_data.get("coleta_content", "")[:1000]}...
+
+"""
+        # Adiciona insights preditivos ao prompt, se disponíveis
+        if "initial_predictive_insights" in base_data:
+            base_prompt += f"\n## INSIGHTS PREDITIVOS INICIAIS:\n"
+            for key, value in base_data["initial_predictive_insights"].items():
+                base_prompt += f"- {key}: {value}\n"
+            base_prompt += "\n"
+
+        base_prompt += f"""## TAREFA:
+Crie um módulo ultra-detalhado sobre {config["title"]} baseado nos dados coletados e nos insights preditivos.
 
 ## ESTRUTURA OBRIGATÓRIA:
 1. **Resumo Executivo**
@@ -336,9 +348,6 @@ Crie um módulo ultra-detalhado sobre {config['title']} baseado nos dados coleta
 - Métricas mensuráveis
 - Formato markdown profissional
 
-## CONTEXTO DOS DADOS COLETADOS:
-{base_data.get('coleta_content', '')[:1000]}...
-
 Gere um conteúdo extremamente detalhado e prático.
 """
 
@@ -347,165 +356,105 @@ Gere um conteúdo extremamente detalhado e prático.
     def _format_cpl_content_to_markdown(self, cpl_content: Dict[str, Any]) -> str:
         """Formata o conteúdo do módulo CPL para Markdown"""
         try:
-            markdown_content = f"""# {cpl_content.get('titulo', 'Protocolo de CPLs Devastadores')}
+            markdown_content = f"""# {cpl_content.get("titulo", "Protocolo de CPLs Devastadores")}
 
-{cpl_content.get('descricao', '')}
+{cpl_content.get("descricao", "")}
 
 """
 
             # Adiciona cada fase do protocolo
-            fases = cpl_content.get('fases', {})
+            fases = cpl_content.get("fases", {})
             for fase_key, fase_data in fases.items():
-                markdown_content += f"## {fase_data.get('titulo', fase_key)}\n\n"
-                markdown_content += f"**{fase_data.get('descricao', '')}**\n\n"
+                markdown_content += f"## {fase_data.get("titulo", fase_key)}\n\n"
+                markdown_content += f"**{fase_data.get("descricao", "")}**\n\n"
                 
                 # Adiciona seções específicas de cada fase
-                if 'estrategia' in fase_data:
-                    markdown_content += f"### Estratégia\n{fase_data['estrategia']}\n\n"
+                if "estrategia" in fase_data:
+                    markdown_content += f"### Estratégia\n{fase_data["estrategia"]}\n\n"
                 
-                if 'versoes_evento' in fase_data:
+                if "versoes_evento" in fase_data:
                     markdown_content += "### Versões do Evento\n"
-                    for versao in fase_data['versoes_evento']:
-                        markdown_content += f"- **{versao.get('nome_evento', '')}** ({versao.get('tipo', '')}): {versao.get('justificativa_psicologica', '')}\n"
+                    for versao in fase_data["versoes_evento"]:
+                        markdown_content += f"- **{versao.get("nome_evento", "")}** ({versao.get("tipo", "")}): {versao.get("justificativa_psicologica", "")}\n"
                     markdown_content += "\n"
                 
-                if 'teasers' in fase_data:
+                if "teasers" in fase_data:
                     markdown_content += "### Teasers\n"
-                    for teaser in fase_data['teasers']:
-                        markdown_content += f"- {teaser.get('texto', '')} (*{teaser.get('justificativa', '')}*)\n"
+                    for teaser in fase_data["teasers"]:
+                        markdown_content += f"- {teaser.get("texto", "")} (*{teaser.get("justificativa", "")}*)\n"
                     markdown_content += "\n"
                 
-                if 'historia_transformacao' in fase_data:
-                    ht = fase_data['historia_transformacao']
+                if "historia_transformacao" in fase_data:
+                    ht = fase_data["historia_transformacao"]
                     markdown_content += "### História de Transformação\n"
-                    markdown_content += f"- **Antes**: {ht.get('antes', '')}\n"
-                    markdown_content += f"- **Durante**: {ht.get('durante', '')}\n"
-                    markdown_content += f"- **Depois**: {ht.get('depois', '')}\n\n"
-                
-                # Adiciona outras seções conforme necessário...
-                markdown_content += "---\n\n"
-            
-            # Adiciona considerações finais
-            consideracoes = cpl_content.get('consideracoes_finais', {})
-            if consideracoes:
-                markdown_content += "## Considerações Finais\n\n"
-                markdown_content += f"**Impacto Previsto**: {consideracoes.get('impacto_previsto', '')}\n\n"
-                
-                if consideracoes.get('diferenciais'):
-                    markdown_content += "### Diferenciais\n"
-                    for diferencial in consideracoes['diferenciais']:
-                        markdown_content += f"- {diferencial}\n"
-                    markdown_content += "\n"
-                
-                if consideracoes.get('proximos_passos'):
-                    markdown_content += "### Próximos Passos\n"
-                    for passo in consideracoes['proximos_passos']:
-                        markdown_content += f"- {passo}\n"
+                    markdown_content += f"- **Antes**: {ht.get("antes", "")}\n"
+                    markdown_content += f"- **Durante**: {ht.get("durante", "")}\n"
+                    markdown_content += f"- **Depois**: {ht.get("depois", "")}\n\n"
+
+                if "elementos_chave" in fase_data:
+                    markdown_content += "### Elementos Chave\n"
+                    for elemento in fase_data["elementos_chave"]:
+                        markdown_content += f"- **{elemento.get("nome", "")}**: {elemento.get("descricao", "")}\n"
                     markdown_content += "\n"
 
-            return markdown_content
-            
-        except Exception as e:
-            logger.error(f"❌ Erro ao formatar conteúdo CPL para Markdown: {e}")
-            return "# Protocolo de CPLs Devastadores\n\n*Erro ao gerar conteúdo formatado*"
+                if "gatilhos_mentais" in fase_data:
+                    markdown_content += "### Gatilhos Mentais Aplicados\n"
+                    for gatilho in fase_data["gatilhos_mentais"]:
+                        markdown_content += f"- **{gatilho.get("nome", "")}**: {gatilho.get("aplicacao", "")}\n"
+                    markdown_content += "\n"
 
-    async def _generate_consolidated_report(self, session_id: str, results: Dict[str, Any]) -> None:
-        """Gera relatório consolidado final"""
-        try:
-            logger.info("📋 Gerando relatório consolidado final...")
+                if "exemplos_copy" in fase_data:
+                    markdown_content += "### Exemplos de Copy\n"
+                    for exemplo in fase_data["exemplos_copy"]:
+                        markdown_content += f"- **{exemplo.get("tipo", "")}**: {exemplo.get("copy", "")}\n"
+                    markdown_content += "\n"
 
-            # Carrega todos os módulos gerados
-            modules_dir = Path(f"analyses_data/{session_id}/modules")
-            consolidated_content = f"""# RELATÓRIO FINAL CONSOLIDADO - ARQV30 Enhanced v3.0
+            markdown_content += f"""## Conclusão
 
-**Sessão:** {session_id}  
-**Data:** {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}  
-**Módulos Gerados:** {results['successful_modules']}/{results['total_modules']}  
-**Taxa de Sucesso:** {(results['successful_modules']/results['total_modules']*100):.1f}%
-
----
-
-## SUMÁRIO EXECUTIVO
-
-Este relatório consolida {results['successful_modules']} módulos especializados de análise estratégica gerados pelo sistema ARQV30 Enhanced v3.0.
-
-## MÓDULOS INCLUÍDOS
+{cpl_content.get("conclusao", "")}
 
 """
-
-            # Adiciona cada módulo gerado (incluindo o novo CPL)
-            for module_name in results['modules_generated']:
-                # Trata o módulo CPL de forma especial
-                if module_name == 'cpl_completo':
-                    cpl_json_file = modules_dir / f"{module_name}.json"
-                    if cpl_json_file.exists():
-                        try:
-                            with open(cpl_json_file, 'r', encoding='utf-8') as f:
-                                cpl_data = json.load(f)
-                                title = cpl_data.get('titulo', self.modules_config[module_name]['title'])
-                                descricao = cpl_data.get('descricao', '')
-                                consolidated_content += f"\n## {title}\n\n{descricao}\n\n"
-                                
-                                # Adiciona um resumo das fases
-                                fases = cpl_data.get('fases', {})
-                                if fases:
-                                    consolidated_content += "### Fases do Protocolo:\n"
-                                    for fase_key, fase_data in fases.items():
-                                        consolidated_content += f"- **{fase_data.get('titulo', fase_key)}**: {fase_data.get('descricao', '')[:100]}...\n"
-                                    consolidated_content += "\n"
-                        except Exception as e:
-                            logger.warning(f"⚠️ Erro ao carregar conteúdo CPL para relatório: {e}")
-                            consolidated_content += f"\n## {self.modules_config[module_name]['title']}\n\n*Conteúdo não disponível*\n\n"
-                    else:
-                        consolidated_content += f"\n## {self.modules_config[module_name]['title']}\n\n*Conteúdo não gerado*\n\n"
-                else:
-                    # Trata módulos padrão
-                    module_file = modules_dir / f"{module_name}.md"
-                    if module_file.exists():
-                        try:
-                            with open(module_file, 'r', encoding='utf-8') as f:
-                                content = f.read()
-                                title = self.modules_config[module_name]['title']
-                                # Extrai apenas o título e resumo executivo para o relatório consolidado
-                                lines = content.split('\n')
-                                summary_lines = []
-                                in_executive_summary = False
-                                
-                                for line in lines:
-                                    if line.startswith('# ') and 'Resumo Executivo' in line:
-                                        in_executive_summary = True
-                                        summary_lines.append(line)
-                                    elif in_executive_summary and line.startswith('#') and 'Resumo Executivo' not in line:
-                                        break
-                                    elif in_executive_summary:
-                                        summary_lines.append(line)
-                                
-                                if summary_lines:
-                                    consolidated_content += f"\n## {title}\n\n" + '\n'.join(summary_lines[1:10]) + "\n\n"
-                                else:
-                                    # Se não encontrar resumo executivo, usa as primeiras linhas
-                                    consolidated_content += f"\n## {title}\n\n" + '\n'.join(lines[:5]) + "\n\n"
-                        except Exception as e:
-                            logger.warning(f"⚠️ Erro ao carregar conteúdo do módulo {module_name} para relatório: {e}")
-                            consolidated_content += f"\n## {self.modules_config[module_name]['title']}\n\n*Conteúdo não disponível*\n\n"
-                consolidated_content += "---\n\n"
-
-            # Adiciona informações de módulos falhados
-            if results['modules_failed']:
-                consolidated_content += "\n## MÓDULOS NÃO GERADOS\n\n"
-                for failed in results['modules_failed']:
-                    consolidated_content += f"- **{failed['module']}**: {failed['error']}\n"
-
-            # Salva relatório consolidado
-            consolidated_path = f"analyses_data/{session_id}/relatorio_final_completo.md"
-            with open(consolidated_path, 'w', encoding='utf-8') as f:
-                f.write(consolidated_content)
-
-            logger.info(f"✅ Relatório consolidado salvo em: {consolidated_path}")
-
+            return markdown_content
         except Exception as e:
-            logger.error(f"❌ Erro ao gerar relatório consolidado: {e}")
-            salvar_erro("relatorio_consolidado", e, contexto={"session_id": session_id})
+            logger.error(f"❌ Erro ao formatar conteúdo CPL para Markdown: {e}")
+            return f"Erro ao gerar CPL: {e}"
+
+    async def _generate_consolidated_report(self, session_id: str, results: Dict[str, Any]):
+        """Gera um relatório consolidado dos módulos gerados."""
+        report_content = f"# Relatório Consolidado de Geração de Módulos\n\n"
+        report_content += f"**Sessão ID**: {session_id}\n"
+        report_content += f"**Data de Geração**: {datetime.now().isoformat()}\n\n"
+        report_content += f"**Total de Módulos**: {results["total_modules"]}\n"
+        report_content += f"**Módulos Gerados com Sucesso**: {results["successful_modules"]}\n"
+        report_content += f"**Módulos com Falha**: {results["failed_modules"]}\n\n"
+
+        if results["modules_generated"]:
+            report_content += "## Módulos Gerados com Sucesso\n"
+            for module_name in results["modules_generated"]:
+                report_content += f"- {self.modules_config[module_name]["title"]} ({module_name})\n"
+            report_content += "\n"
+
+        if results["modules_failed"]:
+            report_content += "## Módulos com Falha\n"
+            for failed_module in results["modules_failed"]:
+                report_content += f"- {self.modules_config[failed_module["module"]]["title"]} ({failed_module["module"]}) - Erro: {failed_module["error"]}\n"
+            report_content += "\n"
+
+        report_content += "## Detalhes dos Módulos\n"
+        for module_name in results["modules_generated"]:
+            module_path = Path(f"analyses_data/{session_id}/modules/{module_name}.md")
+            if module_path.exists():
+                report_content += f"### {self.modules_config[module_name]["title"]}\n"
+                report_content += f"[Ver Módulo Completo]({module_path.name})\n\n"
+            else:
+                report_content += f"### {self.modules_config[module_name]["title"]} (Conteúdo não encontrado)\n\n"
+
+        report_path = Path(f"analyses_data/{session_id}/relatorio_modulos_gerados.md")
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(report_content)
+        logger.info(f"✅ Relatório consolidado de módulos salvo em: {report_path}")
 
 # Instância global
 enhanced_module_processor = EnhancedModuleProcessor()
+
+

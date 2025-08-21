@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -15,6 +14,7 @@ from services.massive_data_collector import massive_data_collector
 from services.enhanced_module_processor import enhanced_module_processor
 from services.comprehensive_report_generator_v3 import comprehensive_report_generator_v3
 from services.auto_save_manager import salvar_etapa, salvar_erro
+from services.predictive_analytics_service import predictive_analytics_service # Import adicionado
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class MasterAnalysisOrchestrator:
         
         logger.info("🎯 Master Analysis Orchestrator v3.0 inicializado")
 
-    def execute_complete_analysis(
+    async def execute_complete_analysis(
         self,
         query: str,
         context: Dict[str, Any],
@@ -65,28 +65,28 @@ class MasterAnalysisOrchestrator:
                 progress_callback(1, "🌊 FASE 1: Executando coleta massiva de dados...")
             
             self.current_phase = "massive_data_collection"
-            massive_data = self._execute_phase_1_massive_collection(query, context, session_id, progress_callback)
+            massive_data = await self._execute_phase_1_massive_collection(query, context, session_id, progress_callback)
             
             # FASE 2: Criação do JSON Gigante  
             if progress_callback:
                 progress_callback(2, "📄 FASE 2: Finalizando JSON gigante...")
             
             self.current_phase = "json_giant_creation"
-            json_giant_summary = self._execute_phase_2_json_creation(massive_data, session_id, progress_callback)
+            json_giant_summary = await self._execute_phase_2_json_creation(massive_data, session_id, progress_callback)
             
             # FASE 3: Processamento de Módulos
             if progress_callback:
                 progress_callback(3, "🔧 FASE 3: Processando todos os módulos...")
             
             self.current_phase = "modules_processing"
-            modules_results = self._execute_phase_3_modules_processing(massive_data, context, session_id, progress_callback)
+            modules_results = await self._execute_phase_3_modules_processing(massive_data, context, session_id, progress_callback)
             
             # FASE 4: Geração do Relatório Detalhado
             if progress_callback:
                 progress_callback(4, "📊 FASE 4: Gerando relatório detalhado (25+ páginas)...")
             
             self.current_phase = "detailed_report_generation"
-            detailed_report = self._execute_phase_4_report_generation(massive_data, modules_results, context, session_id, progress_callback)
+            detailed_report = await self._execute_phase_4_report_generation(massive_data, modules_results, context, session_id, progress_callback)
             
             # Finalização
             execution_time = time.time() - start_time
@@ -107,13 +107,11 @@ class MasterAnalysisOrchestrator:
             # Salva resultado final
             salvar_etapa("master_analysis_completa", final_results, categoria="analise_completa")
             
-            logger.info(f"✅ ANÁLISE COMPLETA CONCLUÍDA em {execution_time:.2f}s")
-            logger.info(f"📊 Dados coletados: {json_giant_summary.get('total_sources', 0)} fontes")
-            logger.info(f"🔧 Módulos processados: {modules_results.get('processing_summary', {}).get('successful_modules', 0)}")
-            logger.info(f"📄 Relatório: {detailed_report.get('estatisticas_relatorio', {}).get('paginas_estimadas', 0)} páginas")
-            
+            logger.info(f"\nANÁLISE COMPLETA CONCLUÍDA em {execution_time:.2f}s")
+            logger.info(f"  Dados coletados: {json_giant_summary.get('total_sources', 0)} fontes")
+            logger.info(f"  Módulos processados: {modules_results.get('processing_summary', {}).get('successful_modules', 0)}")
+            logger.info(f"  Relatório: {detailed_report.get('estatisticas_relatorio', {}).get('paginas_estimadas', 0)} páginas")
             return final_results
-            
         except Exception as e:
             logger.error(f"❌ ERRO CRÍTICO na análise completa: {e}")
             salvar_erro("master_analysis_critico", e, contexto={"session_id": session_id, "phase": self.current_phase})
@@ -126,7 +124,7 @@ class MasterAnalysisOrchestrator:
                 "methodology": "ARQV30_Enhanced_v3.0_APRIMORADA"
             }
 
-    def _execute_phase_1_massive_collection(
+    async def _execute_phase_1_massive_collection(
         self, 
         query: str, 
         context: Dict[str, Any], 
@@ -142,7 +140,7 @@ class MasterAnalysisOrchestrator:
                 progress_callback(1.1, "🔍 Iniciando buscas web simultâneas...")
             
             # Executa coleta massiva
-            massive_data = massive_data_collector.execute_massive_collection(
+            massive_data = await massive_data_collector.execute_massive_collection(
                 query, context, session_id
             )
             
@@ -160,7 +158,7 @@ class MasterAnalysisOrchestrator:
             logger.error(f"❌ FASE 1 FALHOU: {e}")
             raise e
 
-    def _execute_phase_2_json_creation(
+    async def _execute_phase_2_json_creation(
         self, 
         massive_data: Dict[str, Any], 
         session_id: str,
@@ -193,7 +191,7 @@ class MasterAnalysisOrchestrator:
             logger.error(f"❌ FASE 2 FALHOU: {e}")
             raise e
 
-    def _execute_phase_3_modules_processing(
+    async def _execute_phase_3_modules_processing(
         self, 
         massive_data: Dict[str, Any], 
         context: Dict[str, Any],
@@ -208,16 +206,17 @@ class MasterAnalysisOrchestrator:
             if progress_callback:
                 progress_callback(3.1, "🔧 Iniciando processamento dos módulos...")
             
+            # Passar insights iniciais do PredictiveAnalyticsService como contexto
+            logger.info("Obtendo insights iniciais do PredictiveAnalyticsService...")
+            # Adaptação: massive_data pode ser usado para gerar insights iniciais
+            # Para o objetivo, vamos passar o massive_data para o engine para que ele possa processar
+            # e gerar insights iniciais. O método analyze_initial_data precisa ser criado no service.
+            insights_iniciais = await predictive_analytics_service.analyze_initial_data(massive_data)
+            context["initial_predictive_insights"] = insights_iniciais
+            logger.info("Insights iniciais do PredictiveAnalyticsService obtidos e adicionados ao contexto.")
+
             # Executa processamento de módulos usando dados massivos
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                modules_results = loop.run_until_complete(
-                    enhanced_module_processor.generate_all_modules(session_id)
-                )
-            finally:
-                loop.close()
+            modules_results = await enhanced_module_processor.generate_all_modules(session_id, context)  # Passa o contexto atualizado
             
             if progress_callback:
                 progress_callback(3.9, "✅ Todos os módulos processados")
@@ -236,7 +235,7 @@ class MasterAnalysisOrchestrator:
             logger.error(f"❌ FASE 3 FALHOU: {e}")
             raise e
 
-    def _execute_phase_4_report_generation(
+    async def _execute_phase_4_report_generation(
         self, 
         massive_data: Dict[str, Any], 
         modules_results: Dict[str, Any],
@@ -252,8 +251,13 @@ class MasterAnalysisOrchestrator:
             if progress_callback:
                 progress_callback(4.1, "📖 Gerando relatório detalhado...")
             
-            # Gera relatório final detalhado
-            detailed_report = comprehensive_report_generator_v3.compile_final_markdown_report(session_id)
+            # Obter insights finais do PredictiveAnalyticsService
+            logger.info("Obtendo insights finais do PredictiveAnalyticsService...")
+            insights_finais = await predictive_analytics_service.analyze_session(session_id)
+            logger.info("Insights finais do PredictiveAnalyticsService obtidos.")
+
+            # Gera relatório final detalhado, passando os insights finais
+            detailed_report = comprehensive_report_generator_v3.compile_final_markdown_report(session_id, insights_finais)  # Passa insights_finais
             
             if progress_callback:
                 progress_callback(4.9, "✅ Relatório detalhado concluído")
